@@ -1,6 +1,22 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { 
+  Calculator, 
+  PlusCircle, 
+  MinusCircle, 
+  DollarSign, 
+  TrendingUp, 
+  Building, 
+  Search, 
+  Info, 
+  ChevronDown, 
+  ChevronUp, 
+  Percent,
+  Sparkles,
+  ArrowRight
+} from "lucide-react";
 import { C } from "../lib/constants";
 import {
   computeCorporateTax,
@@ -15,11 +31,63 @@ const formatUGX = (n: number) => {
   return "UGX " + Math.round(n).toLocaleString("en-US");
 };
 
+// Static definitions moved outside component to prevent re-creation and fix react hooks warnings
+const tooltipsAddBacks: Record<keyof AddBackItems, string> = {
+  depreciation: "Accounting depreciation is disallowed; tax-approved capital allowance is deducted instead.",
+  entertainmentDisallowed: "Only standard staff canteen is generally allowed. General client entertainment is disallowed.",
+  expensesRelatedToExemptIncome: "Any business expenses incurred to produce tax-exempt income cannot be deducted.",
+  lossOnDisposalOfAssets: "Accounting loss on sale of assets is disallowed; replacement is computed via Schedule 2.",
+  balancingCharge: "A recapture of excess wear-and-tear allowance on asset disposal under Section 60.",
+  donationsDisallowed: "Only donations to certified charitable entities under Section 34 are allowable.",
+  provisionForBadDebts: "General bad debt provisions are disallowed; only specific written-off debts are allowed.",
+  startupCosts: "Pre-operation startup costs must be capitalized and amortized over 4 years.",
+  unrealizedForexLoss: "Unrealized foreign exchange translation losses are disallowed; only realized losses are allowable.",
+  otherDisallowable: "Any other expense not incurred wholly and exclusively in the production of income.",
+};
+
+const tooltipsDeductions: Record<keyof DeductionItems, string> = {
+  exemptIncome: "E.g., interest on specific treasury bonds or agricultural income explicitly exempt by law.",
+  grossRentalIncome: "Rental income is assessed under separate rental tax rules, so it is deducted here.",
+  profitOnDisposalOfAssets: "Accounting gain on asset sales is deducted; capital gain is computed separately.",
+  capitalAllowance: "Tax depreciation/allowance (Wear and Tear, Initial, and Industrial Building allowances).",
+  scientificResearchCapitalized: "Deduction for scientific research expenditures under Section 32.",
+  unrealizedForexGain: "Unrealized paper gains from currency translation are excluded from chargeable income.",
+  provisionForBadDebtsCredited: "General provisions reversed/credited to P&L that were previously disallowed.",
+  finalWithholdingTaxIncome: "Income that suffered final withholding tax (e.g., dividends from listed companies).",
+  otherAllowable: "Other tax deductions allowed under the Income Tax Act not captured above.",
+};
+
+const addBackFields = [
+  { key: "depreciation" as keyof AddBackItems, label: "Accounting Depreciation" },
+  { key: "entertainmentDisallowed" as keyof AddBackItems, label: "Disallowed Entertainment" },
+  { key: "expensesRelatedToExemptIncome" as keyof AddBackItems, label: "Exempt Income Expenses" },
+  { key: "lossOnDisposalOfAssets" as keyof AddBackItems, label: "Loss on Asset Disposal" },
+  { key: "balancingCharge" as keyof AddBackItems, label: "Balancing Charge" },
+  { key: "donationsDisallowed" as keyof AddBackItems, label: "Disallowed Donations" },
+  { key: "provisionForBadDebts" as keyof AddBackItems, label: "General Bad Debt Provision" },
+  { key: "startupCosts" as keyof AddBackItems, label: "Unamortized Start-up Costs" },
+  { key: "unrealizedForexLoss" as keyof AddBackItems, label: "Unrealized Forex Loss" },
+  { key: "otherDisallowable" as keyof AddBackItems, label: "Other Non-allowable Expenses" },
+];
+
+const deductionFields = [
+  { key: "exemptIncome" as keyof DeductionItems, label: "Exempt Income (in P&L)" },
+  { key: "grossRentalIncome" as keyof DeductionItems, label: "Gross Rental Income" },
+  { key: "profitOnDisposalOfAssets" as keyof DeductionItems, label: "Profit on Asset Disposal" },
+  { key: "capitalAllowance" as keyof DeductionItems, label: "Capital Allowance (Wear & Tear)" },
+  { key: "scientificResearchCapitalized" as keyof DeductionItems, label: "Scientific Research" },
+  { key: "unrealizedForexGain" as keyof DeductionItems, label: "Unrealized Forex Gain" },
+  { key: "provisionForBadDebtsCredited" as keyof DeductionItems, label: "Bad Debt Provision Reversed" },
+  { key: "finalWithholdingTaxIncome" as keyof DeductionItems, label: "Final WHT Income" },
+  { key: "otherAllowable" as keyof DeductionItems, label: "Other Allowable Deductions" },
+];
+
 interface MoneyFieldProps {
   label: string;
   value: number;
   onChange: (val: number) => void;
   disabled?: boolean;
+  tooltip?: string;
 }
 
 const MoneyField: React.FC<MoneyFieldProps> = ({
@@ -27,11 +95,14 @@ const MoneyField: React.FC<MoneyFieldProps> = ({
   value,
   onChange,
   disabled = false,
+  tooltip,
 }) => {
   const [prevValue, setPrevValue] = useState(value);
   const [tempValue, setTempValue] = useState<string>(
     value === 0 ? "0" : value.toLocaleString("en-US")
   );
+  const [isFocused, setIsFocused] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
 
   if (value !== prevValue) {
     setPrevValue(value);
@@ -53,12 +124,86 @@ const MoneyField: React.FC<MoneyFieldProps> = ({
   };
 
   const handleBlur = () => {
+    setIsFocused(false);
     setTempValue(value === 0 ? "0" : value.toLocaleString("en-US"));
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%" }}>
-      <label style={{ fontSize: "12px", fontWeight: 700, color: C.navy, letterSpacing: "0.01em" }}>{label}</label>
+    <motion.div 
+      layout
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -8 }}
+      transition={{ duration: 0.2 }}
+      style={{ display: "flex", flexDirection: "column", gap: 6, width: "100%", position: "relative" }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 6, justifyContent: "space-between" }}>
+        <label 
+          style={{ 
+            fontSize: "12px", 
+            fontWeight: 700, 
+            color: disabled ? C.muted : C.navy, 
+            letterSpacing: "0.01em",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            flex: 1
+          }}
+          title={label}
+        >
+          {label}
+        </label>
+        
+        {tooltip && (
+          <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+            <button
+              type="button"
+              onMouseEnter={() => setShowTooltip(true)}
+              onMouseLeave={() => setShowTooltip(false)}
+              onClick={() => setShowTooltip(!showTooltip)}
+              style={{
+                background: "transparent",
+                border: "none",
+                cursor: "pointer",
+                padding: 2,
+                color: showTooltip ? C.gold : C.muted,
+                display: "flex",
+                alignItems: "center"
+              }}
+            >
+              <Info size={13} />
+            </button>
+            <AnimatePresence>
+              {showTooltip && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9, y: 4 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: 4 }}
+                  style={{
+                    position: "absolute",
+                    bottom: "22px",
+                    right: 0,
+                    width: "220px",
+                    background: C.navy,
+                    color: C.white,
+                    padding: "8px 12px",
+                    borderRadius: "6px",
+                    fontSize: "11px",
+                    lineHeight: "1.4",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                    zIndex: 99,
+                    pointerEvents: "none",
+                    border: `1px solid ${C.border}22`
+                  }}
+                >
+                  {tooltip}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+      </div>
+
       <div style={{ position: "relative" }}>
         <span
           style={{
@@ -67,9 +212,10 @@ const MoneyField: React.FC<MoneyFieldProps> = ({
             top: "50%",
             transform: "translateY(-50%)",
             fontFamily: "monospace",
-            fontSize: "13px",
-            color: C.muted,
+            fontSize: "12px",
+            color: isFocused ? C.gold : C.muted,
             fontWeight: 700,
+            transition: "color 0.2s ease",
           }}
         >
           UGX
@@ -79,24 +225,26 @@ const MoneyField: React.FC<MoneyFieldProps> = ({
           value={tempValue}
           onChange={handleChange}
           onBlur={handleBlur}
+          onFocus={() => setIsFocused(true)}
           disabled={disabled}
           style={{
             width: "100%",
             padding: "10px 12px 10px 44px",
             fontFamily: "monospace",
-            fontSize: "14px",
+            fontSize: "13.5px",
             fontWeight: 600,
-            border: `1.5px solid ${C.border}`,
+            border: `1.5px solid ${isFocused ? C.gold : disabled ? C.border : "#D1D5DB"}`,
             borderRadius: "8px",
-            background: disabled ? "#F3F4F6" : C.offwhite,
-            color: C.navy,
+            background: disabled ? "#F3F4F6" : C.white,
+            color: disabled ? C.muted : C.navy,
             outline: "none",
             boxSizing: "border-box",
-            transition: "all 0.15s ease",
+            boxShadow: isFocused ? `0 0 0 3px ${C.gold}18` : "none",
+            transition: "all 0.2s ease",
           }}
         />
       </div>
-    </div>
+    </motion.div>
   );
 };
 
@@ -114,6 +262,13 @@ export const CorporateTaxCalculator: React.FC = () => {
   const [addBacks, setAddBacks] = useState<AddBackItems>(emptyAddBacks());
   const [deductions, setDeductions] = useState<DeductionItems>(emptyDeductions());
   const [repatProfit, setRepatProfit] = useState<number>(0);
+
+  // Collapsible detailed cards
+  const [showAddBacks, setShowAddBacks] = useState(true);
+  const [showDeductions, setShowDeductions] = useState(true);
+
+  // Search filter for detailed fields to enhance usability
+  const [filterTerm, setFilterTerm] = useState("");
 
   const result = useMemo(() => {
     if (mode === "simple") {
@@ -147,26 +302,38 @@ export const CorporateTaxCalculator: React.FC = () => {
     setDeductions((prev) => ({ ...prev, [key]: val }));
   };
 
+  // Filtering fields in Detailed mode
+  const filteredAddBackFields = useMemo(() => {
+    if (!filterTerm) return addBackFields;
+    return addBackFields.filter(f => f.label.toLowerCase().includes(filterTerm.toLowerCase()));
+  }, [filterTerm]);
+
+  const filteredDeductionFields = useMemo(() => {
+    if (!filterTerm) return deductionFields;
+    return deductionFields.filter(f => f.label.toLowerCase().includes(filterTerm.toLowerCase()));
+  }, [filterTerm]);
+
   const detailRows = useMemo(() => {
     const totalAdd = result.totalAddBacks;
     const totalDed = result.totalDeductions;
 
     const rows = [
-      { label: "Total add-backs", value: formatUGX(totalAdd), highlight: false, danger: false },
-      { label: "Total allowable deductions", value: formatUGX(totalDed), highlight: false, danger: false },
-      { label: "Profit after adjustment (Schedule 1, line 4)", value: formatUGX(result.adjustedProfit), highlight: false, danger: result.adjustedProfit < 0 },
-      { label: "Income chargeable before loss relief (line 7)", value: formatUGX(result.incomeChargeableBeforeLossRelief), highlight: false, danger: false },
-      { label: "Brought-forward loss relieved this year", value: formatUGX(result.lossReliefUsed), highlight: false, danger: false },
-      { label: "Loss carried forward to next year (line 10)", value: formatUGX(result.lossCarriedForward), highlight: result.lossCarriedForward > 0, danger: false },
-      { label: "Tax rate applied", value: `${(result.taxRate * 100).toFixed(0)}%`, highlight: false, danger: false },
+      { label: "Total Add-backs (Schedule 1, Item 2)", value: formatUGX(totalAdd), highlight: false, danger: false },
+      { label: "Total Allowable Deductions (Schedule 1, Item 3)", value: formatUGX(totalDed), highlight: false, danger: false },
+      { label: "Adjusted Profit / (Loss) (Line 4)", value: formatUGX(result.adjustedProfit), highlight: true, danger: result.adjustedProfit < 0, bold: true },
+      { label: "Income Chargeable Before Loss Relief (Line 7)", value: formatUGX(result.incomeChargeableBeforeLossRelief), highlight: false, danger: false },
+      { label: "Brought-forward Loss Relieved (Line 8)", value: formatUGX(result.lossReliefUsed), highlight: false, danger: false },
+      { label: "Loss Carried Forward to Next Year (Line 10)", value: formatUGX(result.lossCarriedForward), highlight: result.lossCarriedForward > 0, danger: false, bold: result.lossCarriedForward > 0 },
+      { label: "Corporate Tax Rate", value: `${(result.taxRate * 100).toFixed(0)}%`, highlight: false, danger: false },
     ];
 
     if (result.branchRepatriationTax > 0) {
       rows.push({
-        label: "Branch repatriation tax (15%)",
+        label: "Branch Repatriation Tax (15%)",
         value: formatUGX(result.branchRepatriationTax),
         highlight: false,
         danger: true,
+        bold: true,
       });
     }
 
@@ -174,313 +341,633 @@ export const CorporateTaxCalculator: React.FC = () => {
   }, [result]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24, width: "100%" }}>
-      <div
+    <div style={{ display: "flex", flexDirection: "column", gap: 28, width: "100%", color: C.text }}>
+      
+      {/* HEADER CONTROLS CARD */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
           flexWrap: "wrap",
-          gap: 16,
-          background: C.offwhite,
-          padding: "16px 20px",
-          borderRadius: 12,
-          border: `1px solid ${C.border}`,
+          gap: 20,
+          background: `linear-gradient(135deg, ${C.white} 0%, ${C.offwhite} 100%)`,
+          padding: "20px 24px",
+          borderRadius: 16,
+          border: `1.5px solid ${C.border}`,
+          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.02)",
         }}
       >
-        <div style={{ display: "inline-flex", background: "#E5E7EB", borderRadius: 8, padding: 3 }}>
-          <button
-            onClick={() => setMode("simple")}
-            style={{
-              border: "none",
-              background: mode === "simple" ? C.white : "transparent",
-              padding: "8px 16px",
-              borderRadius: 6,
-              fontSize: "13px",
-              fontWeight: 700,
-              color: mode === "simple" ? C.navy : C.muted,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              transition: "all 0.2s",
-            }}
-          >
-            Simple
-          </button>
-          <button
-            onClick={() => setMode("detailed")}
-            style={{
-              border: "none",
-              background: mode === "detailed" ? C.white : "transparent",
-              padding: "8px 16px",
-              borderRadius: 6,
-              fontSize: "13px",
-              fontWeight: 700,
-              color: mode === "detailed" ? C.navy : C.muted,
-              cursor: "pointer",
-              fontFamily: "inherit",
-              transition: "all 0.2s",
-            }}
-          >
-            Detailed (Schedule 1)
-          </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={{ fontSize: "11px", fontWeight: 800, color: C.gold, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            Calculator View
+          </span>
+          <div style={{ display: "inline-flex", background: "#E5E7EB", borderRadius: 10, padding: 3, position: "relative" }}>
+            <button
+              onClick={() => setMode("simple")}
+              style={{
+                position: "relative",
+                border: "none",
+                background: "transparent",
+                padding: "8px 20px",
+                borderRadius: 8,
+                fontSize: "13px",
+                fontWeight: 700,
+                color: mode === "simple" ? C.navy : C.muted,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                transition: "color 0.25s ease",
+                zIndex: 1,
+              }}
+            >
+              {mode === "simple" && (
+                <motion.div
+                  layoutId="activeCalculatorMode"
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    background: C.white,
+                    borderRadius: 8,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                    zIndex: -1,
+                  }}
+                  transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                />
+              )}
+              Simple Mode
+            </button>
+            <button
+              onClick={() => setMode("detailed")}
+              style={{
+                position: "relative",
+                border: "none",
+                background: "transparent",
+                padding: "8px 20px",
+                borderRadius: 8,
+                fontSize: "13px",
+                fontWeight: 700,
+                color: mode === "detailed" ? C.navy : C.muted,
+                cursor: "pointer",
+                fontFamily: "inherit",
+                transition: "color 0.25s ease",
+                zIndex: 1,
+              }}
+            >
+              {mode === "detailed" && (
+                <motion.div
+                  layoutId="activeCalculatorMode"
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    background: C.white,
+                    borderRadius: 8,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+                    zIndex: -1,
+                  }}
+                  transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                />
+              )}
+              Detailed (Schedule 1)
+            </button>
+          </div>
         </div>
 
-        <div style={{ minWidth: 240 }}>
-          <label style={{ display: "block", fontSize: "11px", fontWeight: 700, color: C.muted, marginBottom: 4, textTransform: "uppercase" }}>
-            Tax Rate Category
+        <div style={{ minWidth: 260 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 5, fontSize: "11px", fontWeight: 800, color: C.muted, marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            <Percent size={12} /> Tax Rate Category
           </label>
-          <select
-            value={rateCat}
-            onChange={(e) => setRateCat(e.target.value as CompanyRateCategory)}
-            style={{
-              width: "100%",
-              padding: "10px 14px",
-              fontFamily: "inherit",
-              fontSize: "14px",
-              fontWeight: 700,
-              border: `1.5px solid ${C.border}`,
-              borderRadius: 8,
-              background: C.white,
-              color: C.navy,
-              outline: "none",
-              cursor: "pointer",
-            }}
-          >
-            <option value="standard">Standard company (30%)</option>
-            <option value="listed">Listed, ≥30% floated (25%)</option>
-          </select>
+          <div style={{ position: "relative" }}>
+            <select
+              value={rateCat}
+              onChange={(e) => setRateCat(e.target.value as CompanyRateCategory)}
+              style={{
+                width: "100%",
+                padding: "11px 36px 11px 16px",
+                fontFamily: "inherit",
+                fontSize: "13.5px",
+                fontWeight: 700,
+                border: `1.5px solid ${C.border}`,
+                borderRadius: 10,
+                background: C.white,
+                color: C.navy,
+                outline: "none",
+                cursor: "pointer",
+                appearance: "none",
+                boxShadow: "0 2px 5px rgba(0,0,0,0.01)",
+                transition: "border-color 0.2s ease",
+              }}
+              onFocus={(e) => (e.target.style.borderColor = C.gold)}
+              onBlur={(e) => (e.target.style.borderColor = C.border)}
+            >
+              <option value="standard">Standard Company (30%)</option>
+              <option value="listed">Listed Corporation (25%)</option>
+            </select>
+            <ChevronDown 
+              size={16} 
+              style={{ 
+                position: "absolute", 
+                right: 12, 
+                top: "50%", 
+                transform: "translateY(-50%)", 
+                color: C.muted, 
+                pointerEvents: "none" 
+              }} 
+            />
+          </div>
         </div>
-      </div>
+      </motion.div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      {/* CORE FINANCIAL FIELDS */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
         <MoneyField
-          label="Profit / (loss) before tax per accounts"
+          label="Profit / (Loss) before tax per accounts"
           value={netProfit}
           onChange={setNetProfit}
+          tooltip="Net business income/loss derived from the audited profit and loss statement, before tax adjustments."
         />
         <MoneyField
-          label="Loss brought forward from prior year"
+          label="Assessed business loss brought forward"
           value={bfLoss}
           onChange={setBfLoss}
+          tooltip="Tax losses sustained in previous years that were formally assessed by the URA and are eligible for carryover relief."
         />
       </div>
 
-      {mode === "simple" ? (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-          <MoneyField
-            label="Total add-backs (depreciation, disallowed expenses, etc.)"
-            value={lumpAdd}
-            onChange={setLumpAdd}
-          />
-          <MoneyField
-            label="Total allowable deductions (capital allowances, etc.)"
-            value={lumpDed}
-            onChange={setLumpDed}
-          />
-        </div>
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-          {/* ADD-BACKS GROUP */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <h3 style={{ fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.05em", color: C.gold, fontWeight: 800, margin: "10px 0 0 0" }}>
-              Add: disallowed items (Schedule 1, item 2)
-            </h3>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
-              <MoneyField
-                label="Depreciation"
-                value={addBacks.depreciation}
-                onChange={(v) => updateAddBack("depreciation", v)}
-              />
-              <MoneyField
-                label="Entertainment (disallowed)"
-                value={addBacks.entertainmentDisallowed}
-                onChange={(v) => updateAddBack("entertainmentDisallowed", v)}
-              />
-              <MoneyField
-                label="Exempt-income expenses"
-                value={addBacks.expensesRelatedToExemptIncome}
-                onChange={(v) => updateAddBack("expensesRelatedToExemptIncome", v)}
-              />
-              <MoneyField
-                label="Loss on disposal of assets"
-                value={addBacks.lossOnDisposalOfAssets}
-                onChange={(v) => updateAddBack("lossOnDisposalOfAssets", v)}
-              />
-              <MoneyField
-                label="Balancing charge"
-                value={addBacks.balancingCharge}
-                onChange={(v) => updateAddBack("balancingCharge", v)}
-              />
-              <MoneyField
-                label="Donations (disallowed)"
-                value={addBacks.donationsDisallowed}
-                onChange={(v) => updateAddBack("donationsDisallowed", v)}
-              />
-              <MoneyField
-                label="Bad debt provision (debited)"
-                value={addBacks.provisionForBadDebts}
-                onChange={(v) => updateAddBack("provisionForBadDebts", v)}
-              />
-              <MoneyField
-                label="Start-up / pre-op costs"
-                value={addBacks.startupCosts}
-                onChange={(v) => updateAddBack("startupCosts", v)}
-              />
-              <MoneyField
-                label="Unrealized forex loss"
-                value={addBacks.unrealizedForexLoss}
-                onChange={(v) => updateAddBack("unrealizedForexLoss", v)}
-              />
-              <MoneyField
-                label="Other non-allowable"
-                value={addBacks.otherDisallowable}
-                onChange={(v) => updateAddBack("otherDisallowable", v)}
-              />
-            </div>
-          </div>
-
-          {/* DEDUCTIONS GROUP */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <h3 style={{ fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.05em", color: C.teal, fontWeight: 800, margin: "10px 0 0 0" }}>
-              Less: allowable items (Schedule 1, item 3)
-            </h3>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 12 }}>
-              <MoneyField
-                label="Exempt income (in P&L)"
-                value={deductions.exemptIncome}
-                onChange={(v) => updateDeduction("exemptIncome", v)}
-              />
-              <MoneyField
-                label="Gross rental income"
-                value={deductions.grossRentalIncome}
-                onChange={(v) => updateDeduction("grossRentalIncome", v)}
-              />
-              <MoneyField
-                label="Profit on disposal of assets"
-                value={deductions.profitOnDisposalOfAssets}
-                onChange={(v) => updateDeduction("profitOnDisposalOfAssets", v)}
-              />
-              <MoneyField
-                label="Capital allowance (Sch. 2)"
-                value={deductions.capitalAllowance}
-                onChange={(v) => updateDeduction("capitalAllowance", v)}
-              />
-              <MoneyField
-                label="Scientific research (capitalized)"
-                value={deductions.scientificResearchCapitalized}
-                onChange={(v) => updateDeduction("scientificResearchCapitalized", v)}
-              />
-              <MoneyField
-                label="Unrealized forex gain"
-                value={deductions.unrealizedForexGain}
-                onChange={(v) => updateDeduction("unrealizedForexGain", v)}
-              />
-              <MoneyField
-                label="Bad debt provision (credited)"
-                value={deductions.provisionForBadDebtsCredited}
-                onChange={(v) => updateDeduction("provisionForBadDebtsCredited", v)}
-              />
-              <MoneyField
-                label="Income taxed as final WHT"
-                value={deductions.finalWithholdingTaxIncome}
-                onChange={(v) => updateDeduction("finalWithholdingTaxIncome", v)}
-              />
-              <MoneyField
-                label="Other allowable deductions"
-                value={deductions.otherAllowable}
-                onChange={(v) => updateDeduction("otherAllowable", v)}
-              />
-            </div>
-          </div>
-
-          {/* BRANCH REPATRIATION */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 12, borderTop: `1px dashed ${C.border}`, paddingTop: 16 }}>
-            <h3 style={{ fontSize: "12px", textTransform: "uppercase", letterSpacing: "0.05em", color: C.navy, fontWeight: 800 }}>
-              Branch profit repatriation (non-resident branches only)
-            </h3>
-            <div style={{ maxWidth: 320 }}>
-              <MoneyField
-                label="Repatriated profit (taxed separately at 15%)"
-                value={repatProfit}
-                onChange={setRepatProfit}
-              />
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* RESULTS SECTIONS */}
-      <div style={{ marginTop: 12, borderTop: `2px dashed ${C.border}`, paddingTop: 24 }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 24 }}>
-          <div style={{ background: C.offwhite, border: `1px solid ${C.border}`, borderRadius: 12, padding: 18 }}>
-            <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: C.muted, letterSpacing: "0.05em", marginBottom: 6 }}>
-              Chargeable Business Income
-            </div>
-            <div style={{ fontFamily: "monospace", fontSize: "18px", fontWeight: 800, color: C.navy }}>
-              {formatUGX(result.chargeableBusinessIncome)}
-            </div>
-          </div>
-
-          <div style={{ background: `${C.gold}12`, border: `1px solid ${C.gold}30`, borderRadius: 12, padding: 18 }}>
-            <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: C.gold, letterSpacing: "0.05em", marginBottom: 6 }}>
-              Income Tax Payable
-            </div>
-            <div style={{ fontFamily: "monospace", fontSize: "18px", fontWeight: 800, color: C.gold }}>
-              {formatUGX(result.incomeTax)}
-            </div>
-          </div>
-
-          <div style={{ background: `${C.teal}12`, border: `1px solid ${C.teal}30`, borderRadius: 12, padding: 18 }}>
-            <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", color: C.teal, letterSpacing: "0.05em", marginBottom: 6 }}>
-              Total Tax Payable
-            </div>
-            <div style={{ fontFamily: "monospace", fontSize: "18px", fontWeight: 800, color: C.teal }}>
-              {formatUGX(result.totalTaxPayable)}
-            </div>
-          </div>
-        </div>
-
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13.5px", marginBottom: 20 }}>
-          <tbody>
-            {detailRows.map((row, idx) => (
-              <tr
-                key={idx}
+      {/* DYNAMIC FORM VIEWS WITH ANIMATION */}
+      <AnimatePresence mode="wait">
+        {mode === "simple" ? (
+          <motion.div
+            key="simple-inputs"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.25 }}
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}
+          >
+            <MoneyField
+              label="Lump-sum disallowed add-backs"
+              value={lumpAdd}
+              onChange={setLumpAdd}
+              tooltip="Aggregate of non-deductible expenditures (such as depreciation, donations, penalties)."
+            />
+            <MoneyField
+              label="Lump-sum tax-allowable deductions"
+              value={lumpDed}
+              onChange={setLumpDed}
+              tooltip="Aggregate of tax allowances and exempt income lines (such as wear-and-tear allowances)."
+            />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="detailed-inputs"
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -15 }}
+            transition={{ duration: 0.25 }}
+            style={{ display: "flex", flexDirection: "column", gap: 24 }}
+          >
+            {/* SEARCH & FILTERS FOR TAX ITEMS */}
+            <div 
+              style={{ 
+                display: "flex", 
+                alignItems: "center", 
+                gap: 10, 
+                background: C.offwhite, 
+                padding: "8px 16px", 
+                borderRadius: "10px", 
+                border: `1px solid ${C.border}` 
+              }}
+            >
+              <Search size={16} style={{ color: C.muted }} />
+              <input
+                type="text"
+                placeholder="Search Schedule 1 items (e.g., depreciation, bad debt, donations...)"
+                value={filterTerm}
+                onChange={(e) => setFilterTerm(e.target.value)}
                 style={{
-                  borderBottom: `1px solid ${C.border}`,
-                  background: row.highlight ? `${C.gold}12` : "transparent",
+                  width: "100%",
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  fontSize: "13px",
+                  color: C.navy,
+                  fontFamily: "inherit"
                 }}
-              >
-                <td style={{ padding: "10px 12px", color: C.muted, fontWeight: 500 }}>{row.label}</td>
-                <td
+              />
+              {filterTerm && (
+                <button
+                  onClick={() => setFilterTerm("")}
                   style={{
-                    padding: "10px 12px",
-                    textAlign: "right",
-                    fontFamily: "monospace",
+                    background: "none",
+                    border: "none",
+                    fontSize: "11px",
                     fontWeight: 700,
-                    color: row.danger ? C.red : row.highlight ? C.gold : C.navy,
+                    color: C.gold,
+                    cursor: "pointer"
                   }}
                 >
-                  {row.value}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  Clear
+                </button>
+              )}
+            </div>
 
-        <div
+            {/* ADD-BACKS ACCORDION GROUP */}
+            <div 
+              style={{ 
+                border: `1.5px solid ${C.border}`, 
+                borderRadius: 16, 
+                overflow: "hidden",
+                background: C.white,
+                boxShadow: "0 2px 10px rgba(0,0,0,0.01)"
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowAddBacks(!showAddBacks)}
+                style={{
+                  width: "100%",
+                  padding: "16px 20px",
+                  background: `linear-gradient(to right, ${C.gold}08, transparent)`,
+                  border: "none",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  cursor: "pointer",
+                  textAlign: "left"
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <PlusCircle size={18} style={{ color: C.gold }} />
+                  <div>
+                    <span style={{ fontSize: "13.5px", fontWeight: 800, color: C.navy, letterSpacing: "0.01em" }}>
+                      Add: Disallowed expenditures & taxable adjustments
+                    </span>
+                    <p style={{ margin: "2px 0 0 0", fontSize: "11px", color: C.muted }}>
+                      Items charged to P&L but disallowed for tax (Form DT-2002, Schedule 1, Item 2)
+                    </p>
+                  </div>
+                </div>
+                {showAddBacks ? <ChevronUp size={18} style={{ color: C.navy }} /> : <ChevronDown size={18} style={{ color: C.navy }} />}
+              </button>
+
+              <AnimatePresence>
+                {showAddBacks && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25 }}
+                    style={{ overflow: "hidden" }}
+                  >
+                    <div style={{ padding: 20, borderTop: `1.5px solid ${C.border}`, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 16 }}>
+                      {filteredAddBackFields.length > 0 ? (
+                        filteredAddBackFields.map((f) => (
+                          <MoneyField
+                            key={f.key}
+                            label={f.label}
+                            value={addBacks[f.key]}
+                            onChange={(v) => updateAddBack(f.key, v)}
+                            tooltip={tooltipsAddBacks[f.key]}
+                          />
+                        ))
+                      ) : (
+                        <div style={{ gridColumn: "1 / -1", padding: "16px 0", textAlign: "center", color: C.muted, fontSize: "12.5px" }}>
+                          No matching disallowed items found.
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* DEDUCTIONS ACCORDION GROUP */}
+            <div 
+              style={{ 
+                border: `1.5px solid ${C.border}`, 
+                borderRadius: 16, 
+                overflow: "hidden",
+                background: C.white,
+                boxShadow: "0 2px 10px rgba(0,0,0,0.01)"
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowDeductions(!showDeductions)}
+                style={{
+                  width: "100%",
+                  padding: "16px 20px",
+                  background: `linear-gradient(to right, ${C.teal}08, transparent)`,
+                  border: "none",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  cursor: "pointer",
+                  textAlign: "left"
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <MinusCircle size={18} style={{ color: C.teal }} />
+                  <div>
+                    <span style={{ fontSize: "13.5px", fontWeight: 800, color: C.navy, letterSpacing: "0.01em" }}>
+                      Less: Allowable deductions & exempt incomes
+                    </span>
+                    <p style={{ margin: "2px 0 0 0", fontSize: "11px", color: C.muted }}>
+                      Incomes not taxable or expenses allowed under the Act (Form DT-2002, Schedule 1, Item 3)
+                    </p>
+                  </div>
+                </div>
+                {showDeductions ? <ChevronUp size={18} style={{ color: C.navy }} /> : <ChevronDown size={18} style={{ color: C.navy }} />}
+              </button>
+
+              <AnimatePresence>
+                {showDeductions && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.25 }}
+                    style={{ overflow: "hidden" }}
+                  >
+                    <div style={{ padding: 20, borderTop: `1.5px solid ${C.border}`, display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(230px, 1fr))", gap: 16 }}>
+                      {filteredDeductionFields.length > 0 ? (
+                        filteredDeductionFields.map((f) => (
+                          <MoneyField
+                            key={f.key}
+                            label={f.label}
+                            value={deductions[f.key]}
+                            onChange={(v) => updateDeduction(f.key, v)}
+                            tooltip={tooltipsDeductions[f.key]}
+                          />
+                        ))
+                      ) : (
+                        <div style={{ gridColumn: "1 / -1", padding: "16px 0", textAlign: "center", color: C.muted, fontSize: "12.5px" }}>
+                          No matching allowable items found.
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* BRANCH REPATRIATION */}
+            <motion.div 
+              layout
+              style={{ 
+                display: "flex", 
+                flexDirection: "column", 
+                gap: 14, 
+                borderTop: `1.5px dashed ${C.border}`, 
+                paddingTop: 20 
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Building size={16} style={{ color: C.navy }} />
+                <span style={{ fontSize: "13px", fontWeight: 800, color: C.navy }}>
+                  Branch Profit Repatriation (For Non-Resident Entities)
+                </span>
+              </div>
+              <div style={{ maxWidth: 360 }}>
+                <MoneyField
+                  label="Repatriated profits during the year"
+                  value={repatProfit}
+                  onChange={setRepatProfit}
+                  tooltip="Foreign branches operating in Uganda are assessed branch repatriation tax at 15% on profits transferred out of Uganda under Section 80."
+                />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* COMPUTATION PIPELINE MAP (MODERN VISUAL FLOW CHART) */}
+      <motion.div
+        layout
+        style={{
+          background: C.offwhite,
+          border: `1px solid ${C.border}`,
+          borderRadius: 16,
+          padding: 20,
+          marginTop: 8,
+          boxShadow: "inset 0 2px 6px rgba(0,0,0,0.01)"
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+          <Sparkles size={15} style={{ color: C.gold }} />
+          <span style={{ fontSize: "11.5px", fontWeight: 800, color: C.navy, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+            Tax Computation Pipeline Map
+          </span>
+        </div>
+
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 180px", textAlign: "center", padding: "10px", background: C.white, borderRadius: 10, border: `1px solid ${C.border}` }}>
+            <span style={{ fontSize: "10px", fontWeight: 700, color: C.muted, textTransform: "uppercase" }}>Book Profit</span>
+            <div style={{ fontSize: "13px", fontWeight: 800, color: C.navy, marginTop: 4, fontFamily: "monospace" }}>{formatUGX(netProfit)}</div>
+          </div>
+
+          <ArrowRight size={14} style={{ color: C.muted, opacity: 0.5 }} />
+
+          <div style={{ flex: "1 1 180px", textAlign: "center", padding: "10px", background: `${C.gold}08`, borderRadius: 10, border: `1px solid ${C.gold}20` }}>
+            <span style={{ fontSize: "10px", fontWeight: 700, color: C.gold, textTransform: "uppercase" }}>Adjustments (Net)</span>
+            <div style={{ fontSize: "13px", fontWeight: 800, color: C.gold, marginTop: 4, fontFamily: "monospace" }}>
+              {result.totalAddBacks - result.totalDeductions >= 0 ? "+" : ""}{formatUGX(result.totalAddBacks - result.totalDeductions)}
+            </div>
+          </div>
+
+          <ArrowRight size={14} style={{ color: C.muted, opacity: 0.5 }} />
+
+          <div style={{ flex: "1 1 180px", textAlign: "center", padding: "10px", background: C.white, borderRadius: 10, border: `1px solid ${C.border}` }}>
+            <span style={{ fontSize: "10px", fontWeight: 700, color: C.muted, textTransform: "uppercase" }}>Adjusted Income</span>
+            <div style={{ fontSize: "13px", fontWeight: 800, color: C.navy, marginTop: 4, fontFamily: "monospace" }}>{formatUGX(result.adjustedProfit)}</div>
+          </div>
+
+          {bfLoss > 0 && (
+            <>
+              <ArrowRight size={14} style={{ color: C.muted, opacity: 0.5 }} />
+              <div style={{ flex: "1 1 180px", textAlign: "center", padding: "10px", background: `${C.teal}08`, borderRadius: 10, border: `1px solid ${C.teal}20` }}>
+                <span style={{ fontSize: "10px", fontWeight: 700, color: C.teal, textTransform: "uppercase" }}>Loss Relief Used</span>
+                <div style={{ fontSize: "13px", fontWeight: 800, color: C.teal, marginTop: 4, fontFamily: "monospace" }}>-{formatUGX(result.lossReliefUsed)}</div>
+              </div>
+            </>
+          )}
+
+          <ArrowRight size={14} style={{ color: C.muted, opacity: 0.5 }} />
+
+          <div style={{ flex: "1 1 180px", textAlign: "center", padding: "10px", background: `${C.navy}08`, borderRadius: 10, border: `1px solid ${C.navy}20` }}>
+            <span style={{ fontSize: "10px", fontWeight: 700, color: C.navy, textTransform: "uppercase" }}>Chargeable</span>
+            <div style={{ fontSize: "13px", fontWeight: 800, color: C.navy, marginTop: 4, fontFamily: "monospace" }}>{formatUGX(result.chargeableBusinessIncome)}</div>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* RESULTS SECTIONS */}
+      <motion.div 
+        layout
+        style={{ marginTop: 8, borderTop: `1.5px dashed ${C.border}`, paddingTop: 28 }}
+      >
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 20, marginBottom: 28 }}>
+          
+          <motion.div 
+            whileHover={{ scale: 1.02, y: -2 }}
+            transition={{ duration: 0.2 }}
+            style={{ 
+              background: C.white, 
+              border: `1.5px solid ${C.border}`, 
+              borderRadius: 16, 
+              padding: "20px 22px",
+              boxShadow: "0 4px 15px rgba(0,0,0,0.01)",
+              position: "relative",
+              overflow: "hidden"
+            }}
+          >
+            <div style={{ position: "absolute", top: 0, left: 0, width: "4px", height: "100%", background: C.muted }} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <div style={{ fontSize: "11px", fontWeight: 800, textTransform: "uppercase", color: C.muted, letterSpacing: "0.05em", marginBottom: 6 }}>
+                  Chargeable Business Income
+                </div>
+                <div style={{ fontFamily: "monospace", fontSize: "19px", fontWeight: 900, color: C.navy }}>
+                  {formatUGX(result.chargeableBusinessIncome)}
+                </div>
+              </div>
+              <div style={{ background: `${C.muted}10`, padding: 8, borderRadius: 10, color: C.muted }}>
+                <DollarSign size={16} />
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div 
+            whileHover={{ scale: 1.02, y: -2 }}
+            transition={{ duration: 0.2 }}
+            style={{ 
+              background: C.white, 
+              border: `1.5px solid ${C.gold}30`, 
+              borderRadius: 16, 
+              padding: "20px 22px",
+              boxShadow: "0 4px 15px rgba(12,12,12,0.01)",
+              position: "relative",
+              overflow: "hidden"
+            }}
+          >
+            <div style={{ position: "absolute", top: 0, left: 0, width: "4px", height: "100%", background: C.gold }} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <div style={{ fontSize: "11px", fontWeight: 800, textTransform: "uppercase", color: C.gold, letterSpacing: "0.05em", marginBottom: 6 }}>
+                  Income Tax Liability
+                </div>
+                <div style={{ fontFamily: "monospace", fontSize: "19px", fontWeight: 900, color: C.gold }}>
+                  {formatUGX(result.incomeTax)}
+                </div>
+              </div>
+              <div style={{ background: `${C.gold}10`, padding: 8, borderRadius: 10, color: C.gold }}>
+                <TrendingUp size={16} />
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div 
+            whileHover={{ scale: 1.02, y: -2 }}
+            transition={{ duration: 0.2 }}
+            style={{ 
+              background: C.white, 
+              border: `1.5px solid ${C.teal}30`, 
+              borderRadius: 16, 
+              padding: "20px 22px",
+              boxShadow: "0 4px 15px rgba(12,12,12,0.01)",
+              position: "relative",
+              overflow: "hidden"
+            }}
+          >
+            <div style={{ position: "absolute", top: 0, left: 0, width: "4px", height: "100%", background: C.teal }} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div>
+                <div style={{ fontSize: "11px", fontWeight: 800, textTransform: "uppercase", color: C.teal, letterSpacing: "0.05em", marginBottom: 6 }}>
+                  Total Obligations Due
+                </div>
+                <div style={{ fontFamily: "monospace", fontSize: "19px", fontWeight: 900, color: C.teal }}>
+                  {formatUGX(result.totalTaxPayable)}
+                </div>
+              </div>
+              <div style={{ background: `${C.teal}10`, padding: 8, borderRadius: 10, color: C.teal }}>
+                <Calculator size={16} />
+              </div>
+            </div>
+          </motion.div>
+
+        </div>
+
+        {/* DETAILED LEDGER TABLE */}
+        <div style={{ overflowX: "auto", border: `1.5px solid ${C.border}`, borderRadius: 14, background: C.white, marginBottom: 24 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", minWidth: 500 }}>
+            <thead>
+              <tr style={{ background: C.offwhite, borderBottom: `1.5px solid ${C.border}`, textAlign: "left" }}>
+                <th style={{ padding: "12px 16px", fontWeight: 800, color: C.navy, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em" }}>URA Form Line & Schedule Detail</th>
+                <th style={{ padding: "12px 16px", fontWeight: 800, color: C.navy, fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "right" }}>Amount (UGX) / Values</th>
+              </tr>
+            </thead>
+            <tbody>
+              {detailRows.map((row, idx) => (
+                <motion.tr
+                  key={idx}
+                  whileHover={{ background: `${C.offwhite}aa` }}
+                  style={{
+                    borderBottom: idx === detailRows.length - 1 ? "none" : `1px solid ${C.border}`,
+                    background: row.highlight ? `${C.gold}06` : "transparent",
+                    transition: "background 0.15s ease",
+                  }}
+                >
+                  <td style={{ padding: "12px 16px", color: row.bold ? C.navy : C.muted, fontWeight: row.bold ? 700 : 500 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      {row.highlight && <Sparkles size={12} style={{ color: C.gold }} />}
+                      {row.label}
+                    </div>
+                  </td>
+                  <td
+                    style={{
+                      padding: "12px 16px",
+                      textAlign: "right",
+                      fontFamily: "monospace",
+                      fontWeight: 700,
+                      color: row.danger ? C.red : row.highlight ? C.gold : C.navy,
+                    }}
+                  >
+                    {row.value}
+                  </td>
+                </motion.tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* COMPLIANCE GUIDANCE CARD */}
+        <motion.div
+          layout
           style={{
-            fontSize: "12px",
+            fontSize: "12.5px",
             color: C.muted,
-            lineHeight: "1.6",
-            padding: "16px",
-            background: C.offwhite,
+            lineHeight: "1.65",
+            padding: "20px",
+            background: `linear-gradient(135deg, ${C.offwhite} 0%, ${C.white} 100%)`,
             borderLeft: `4px solid ${C.gold}`,
-            borderRadius: "4px",
+            borderRadius: "8px",
+            border: `1px solid ${C.border}`,
+            display: "flex",
+            gap: 14,
+            alignItems: "flex-start",
           }}
         >
-          Modeled on URA Form DT-2002, Schedule 1 (Computation of income from business and profession) and Section C. Standard rate is 30%; a reduced 25% applies to companies listed on the Uganda Securities Exchange with at least 30% of shares floated. Repatriated branch profit is taxed separately at 15%, in addition to the tax on the branch&apos;s own chargeable income. Capital allowances (initial allowance, wear-and-tear, industrial building allowance) should be computed on Schedule 2 and entered here as a single total — this calculator does not itself maintain a fixed-asset register.
-        </div>
-      </div>
+          <Info size={18} style={{ color: C.gold, flexShrink: 0, marginTop: 2 }} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <span style={{ fontWeight: 800, color: C.navy, fontSize: "13px" }}>Corporate Tax Compliance Note</span>
+            <span style={{ fontSize: "12px" }}>
+              Modeled on URA Form DT-2002, Schedule 1 (Computation of income from business and profession) and Section C. Standard rate is 30%; a reduced 25% applies to companies listed on the Uganda Securities Exchange with at least 30% of shares floated. Repatriated branch profit is taxed separately at 15%, in addition to the tax on the branch&apos;s own chargeable income. Capital allowances (initial allowance, wear-and-tear, industrial building allowance) should be computed on Schedule 2 and entered here as a single total — this calculator does not itself maintain a fixed-asset register.
+            </span>
+          </div>
+        </motion.div>
+      </motion.div>
     </div>
   );
 };
