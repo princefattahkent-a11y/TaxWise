@@ -4,6 +4,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import { C } from "../lib/constants";
 import { Card } from "./UI";
 import { supabase } from "../lib/supabaseClient";
+import { CorporateTaxCalculator } from "./CorporateTaxCalculator";
 
 interface CalculatorTab {
   id: string;
@@ -218,83 +219,98 @@ export const CalculatorsPortal: React.FC = () => {
         </div>
 
         <div style={{ display: "grid", gap: 20 }}>
-          <Card style={{ padding: 24 }} hover>
-            <div style={{ display: "grid", gap: 20, gridTemplateColumns: "1.8fr 1fr" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-                <div style={{ display: "flex", alignItems: "flex-start", gap: 14, flexWrap: "wrap" }}>
+          {activeTab === "corporate" ? (
+            <Card style={{ padding: 28 }} hover>
+              <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 14, flexWrap: "wrap", borderBottom: `1px solid ${C.border}`, paddingBottom: 16 }}>
                   <div style={{ width: 12, height: 12, borderRadius: "50%", background: activeCalculator.accent, marginTop: 6 }} />
                   <div>
                     <div style={{ fontSize: "1.15rem", fontWeight: 800, color: C.navy }}>{activeCalculator.title}</div>
                     <div style={{ color: C.muted, fontSize: "0.95rem", marginTop: 4 }}>{activeCalculator.description}</div>
                   </div>
                 </div>
+                <CorporateTaxCalculator />
+              </div>
+            </Card>
+          ) : (
+            <Card style={{ padding: 24 }} hover>
+              <div style={{ display: "grid", gap: 20, gridTemplateColumns: "1.8fr 1fr" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 14, flexWrap: "wrap" }}>
+                    <div style={{ width: 12, height: 12, borderRadius: "50%", background: activeCalculator.accent, marginTop: 6 }} />
+                    <div>
+                      <div style={{ fontSize: "1.15rem", fontWeight: 800, color: C.navy }}>{activeCalculator.title}</div>
+                      <div style={{ color: C.muted, fontSize: "0.95rem", marginTop: 4 }}>{activeCalculator.description}</div>
+                    </div>
+                  </div>
 
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  <div style={{ display: "grid", gap: 16, gridTemplateColumns: "1fr 1fr" }}>
-                    <label style={{ display: "flex", flexDirection: "column", gap: 8, fontWeight: 700, color: C.navy, fontSize: "0.9rem" }}>
-                      {activeCalculator.inputLabel}
-                      <input
-                        type="text"
-                        value={formatInputValue(values[activeCalculator.id] ?? activeCalculator.inputValue)}
-                        inputMode="numeric"
-                        onChange={(e) => {
-                          const parsed = parseFormattedValue(e.target.value);
-                          setValues((prev) => ({ ...prev, [activeCalculator.id]: parsed }));
-                        }}
-                        style={{
-                          border: `1px solid ${C.border}`,
-                          borderRadius: 12,
-                          padding: "14px 16px",
-                          fontSize: "0.95rem",
-                          fontFamily: "inherit",
-                          background: C.offwhite,
-                        }}
-                      />
-                    </label>
-                    <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 12 }}>
-                      <div style={{ color: C.muted, fontSize: "0.88rem", lineHeight: 1.7 }}>{activeCalculator.helper}</div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                        <span style={{ fontWeight: 700, color: C.navy }}>Quick formula</span>
-                        <div style={{ background: C.offwhite, borderRadius: 12, padding: 12, color: C.text, fontSize: "0.88rem", lineHeight: 1.6 }}>
-                          {activeCalculator.id === "paye" && `PAYE = gross × ${rates.paye}%`}
-                          {activeCalculator.id === "vat" && `VAT = amount × ${rates.vat}%`}
-                          {activeCalculator.id === "wht" && `WHT = amount × ${rates.wht}%`}
-                          {activeCalculator.id === "import" && `Duty + VAT = value × ${rates.import}%`}
-                          {activeCalculator.id === "corporate" && `Corporate tax = profit × ${rates.corporate}%`}
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    <div style={{ display: "grid", gap: 16, gridTemplateColumns: "1fr 1fr" }}>
+                      <label style={{ display: "flex", flexDirection: "column", gap: 8, fontWeight: 700, color: C.navy, fontSize: "0.9rem" }}>
+                        {activeCalculator.inputLabel}
+                        <input
+                          type="text"
+                          value={formatInputValue(values[activeCalculator.id] ?? activeCalculator.inputValue)}
+                          inputMode="numeric"
+                          onChange={(e) => {
+                            const parsed = parseFormattedValue(e.target.value);
+                            setValues((prev) => ({ ...prev, [activeCalculator.id]: parsed }));
+                          }}
+                          style={{
+                            border: `1px solid ${C.border}`,
+                            borderRadius: 12,
+                            padding: "14px 16px",
+                            fontSize: "0.95rem",
+                            fontFamily: "inherit",
+                            background: C.offwhite,
+                          }}
+                        />
+                      </label>
+                      <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", gap: 12 }}>
+                        <div style={{ color: C.muted, fontSize: "0.88rem", lineHeight: 1.7 }}>{activeCalculator.helper}</div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          <span style={{ fontWeight: 700, color: C.navy }}>Quick formula</span>
+                          <div style={{ background: C.offwhite, borderRadius: 12, padding: 12, color: C.text, fontSize: "0.88rem", lineHeight: 1.6 }}>
+                            {activeCalculator.id === "paye" && `PAYE = gross × ${rates.paye}%`}
+                            {activeCalculator.id === "vat" && `VAT = amount × ${rates.vat}%`}
+                            {activeCalculator.id === "wht" && `WHT = amount × ${rates.wht}%`}
+                            {activeCalculator.id === "import" && `Duty + VAT = value × ${rates.import}%`}
+                            {activeCalculator.id === "corporate" && `Corporate tax = profit × ${rates.corporate}%`}
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div style={{ display: "grid", gap: 16 }}>
-                <div style={{ background: `${activeCalculator.accent}12`, borderRadius: 20, padding: 22, minHeight: 180, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-                  <div>
-                    <div style={{ fontSize: "0.8rem", letterSpacing: "0.08em", textTransform: "uppercase", color: activeCalculator.accent, fontWeight: 800, marginBottom: 10 }}>
-                      {result.label}
+                <div style={{ display: "grid", gap: 16 }}>
+                  <div style={{ background: `${activeCalculator.accent}12`, borderRadius: 20, padding: 22, minHeight: 180, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                    <div>
+                      <div style={{ fontSize: "0.8rem", letterSpacing: "0.08em", textTransform: "uppercase", color: activeCalculator.accent, fontWeight: 800, marginBottom: 10 }}>
+                        {result.label}
+                      </div>
+                      <div style={{ fontSize: "2rem", fontWeight: 900, color: C.navy, lineHeight: 1.05 }}>{activeCalculator.format(result.value)}</div>
                     </div>
-                    <div style={{ fontSize: "2rem", fontWeight: 900, color: C.navy, lineHeight: 1.05 }}>{activeCalculator.format(result.value)}</div>
+                    <div style={{ color: C.muted, fontSize: "0.9rem", lineHeight: 1.6 }}>{result.note}</div>
                   </div>
-                  <div style={{ color: C.muted, fontSize: "0.9rem", lineHeight: 1.6 }}>{result.note}</div>
-                </div>
 
-                <div style={{ display: "grid", gap: 12 }}>
-                  <div style={{ background: C.offwhite, borderRadius: 16, padding: 18 }}>
-                    <div style={{ fontSize: "0.8rem", fontWeight: 700, color: C.navy, marginBottom: 10 }}>Key details</div>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                      <div style={{ fontSize: "0.95rem", fontWeight: 700, color: C.navy }}>Rate</div>
-                      <div style={{ fontSize: "0.95rem", color: C.muted }}>{result.rate}</div>
+                  <div style={{ display: "grid", gap: 12 }}>
+                    <div style={{ background: C.offwhite, borderRadius: 16, padding: 18 }}>
+                      <div style={{ fontSize: "0.8rem", fontWeight: 700, color: C.navy, marginBottom: 10 }}>Key details</div>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+                        <div style={{ fontSize: "0.95rem", fontWeight: 700, color: C.navy }}>Rate</div>
+                        <div style={{ fontSize: "0.95rem", color: C.muted }}>{result.rate}</div>
+                      </div>
                     </div>
-                  </div>
-                  <div style={{ background: C.offwhite, borderRadius: 16, padding: 18 }}>
-                    <div style={{ fontSize: "0.8rem", fontWeight: 700, color: C.navy, marginBottom: 10 }}>Practical use</div>
-                    <div style={{ fontSize: "0.9rem", color: C.muted, lineHeight: 1.7 }}>Use this result to size up obligations before filing returns or creating client estimates.</div>
+                    <div style={{ background: C.offwhite, borderRadius: 16, padding: 18 }}>
+                      <div style={{ fontSize: "0.8rem", fontWeight: 700, color: C.navy, marginBottom: 10 }}>Practical use</div>
+                      <div style={{ fontSize: "0.9rem", color: C.muted, lineHeight: 1.7 }}>Use this result to size up obligations before filing returns or creating client estimates.</div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </Card>
+            </Card>
+          )}
 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 20 }}>
             {calculatorTabs.filter((tab) => tab.id !== activeCalculator.id).slice(0, 3).map((tab) => (
